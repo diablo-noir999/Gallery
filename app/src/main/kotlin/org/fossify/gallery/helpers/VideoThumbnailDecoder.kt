@@ -1,7 +1,6 @@
 package org.fossify.gallery.helpers
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.os.ParcelFileDescriptor
 import com.bumptech.glide.load.Options
