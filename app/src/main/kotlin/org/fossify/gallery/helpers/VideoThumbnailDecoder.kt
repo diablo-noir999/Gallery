@@ -39,9 +39,10 @@ class VideoThumbnailDecoder : ResourceDecoder<Uri, Bitmap> {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(path)
-            // getFrameAtTime(0) = extract at exactly timestamp 0
-            // No OPTION_CLOSEST_SYNC = decode the actual pixel data, not just nearest keyframe
-            val bitmap = retriever.getFrameAtTime(0) ?: return null
+            // OPTION_CLOSEST decodes the actual frame closest to timestamp 0,
+            // instead of OPTION_CLOSEST_SYNC which jumps to the nearest keyframe (I-frame).
+            // This ensures the cover frame is grabbed even if it's not on a keyframe boundary.
+            val bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST) ?: return null
 
             // Scale down if needed to avoid OOM
             val scaled = if (width > 0 && height > 0) {
