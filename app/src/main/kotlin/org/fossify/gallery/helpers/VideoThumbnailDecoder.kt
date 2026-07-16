@@ -1,47 +1,46 @@
 package org.fossify.gallery.helpers
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.net.Uri
+import android.os.ParcelFileDescriptor
 import com.bumptech.glide.load.Options
 import com.bumptech.glide.load.ResourceDecoder
 import com.bumptech.glide.load.engine.Resource
-import java.io.File
+import java.io.FileDescriptor
 
 /**
  * Custom Glide decoder that extracts the FIRST frame (timestamp 0) of a video,
- * instead of Glide's default which seeks to the nearest keyframe (OPTION_CLOSEST_SYNC).
+ * instead of Glide's default VideoDecoder which uses OPTION_CLOSEST_SYNC
+ * (seeks to nearest keyframe, skipping the cover frame).
  *
- * OPTION_CLOSEST decodes the actual pixel frame closest to the given timestamp,
+ * OPTION_CLOSEST decodes the actual pixel frame closest to timestamp 0,
  * ensuring the cover frame is always grabbed as the thumbnail.
+ *
+ * Registered as ParcelFileDescriptor → Bitmap so it intercepts Glide's actual
+ * video loading pipeline (String → Uri → PFD → Bitmap).
  */
-class VideoThumbnailDecoder : ResourceDecoder<Uri, Bitmap> {
+class VideoThumbnailDecoder : ResourceDecoder<ParcelFileDescriptor, Bitmap> {
 
-    override fun handles(source: Uri, options: Options): Boolean {
-        if (source.scheme != "file" && source.scheme != null) return false
-        val path = source.path ?: return false
-        if (!File(path).exists()) return false
-        val lower = path.lowercase()
-        return VIDEO_EXTENSIONS.any { lower.endsWith(it) }
+    override fun handles(source: ParcelFileDescriptor, options: Options): Boolean {
+        // We can't easily check file extension from a ParcelFileDescriptor,
+        // but Glide only routes video files here, and we always want to override.
+        return true
     }
 
     override fun decode(
-        source: Uri,
+        source: ParcelFileDescriptor,
         width: Int,
         height: Int,
         options: Options
     ): Resource<Bitmap>? {
-        val path = source.path ?: return null
+        val fd: FileDescriptor = source.fileDescriptor ?: return null
         val retriever = MediaMetadataRetriever()
         return try {
-            retriever.setDataSource(path)
-            // OPTION_CLOSEST decodes the actual frame closest to timestamp 0,
-            // instead of OPTION_CLOSEST_SYNC which jumps to the nearest keyframe (I-frame).
-            // This ensures the cover frame is grabbed even if it's not on a keyframe boundary.
+            retriever.setDataSource(fd)
             val bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST)
                 ?: return null
 
-            // Scale down if needed to avoid OOM
             val scaled = if (width > 0 && height > 0) {
                 val ratio = minOf(
                     width.toFloat() / bitmap.width,
@@ -76,13 +75,5 @@ class VideoThumbnailDecoder : ResourceDecoder<Uri, Bitmap> {
                 retriever.release()
             } catch (_: Exception) {}
         }
-    }
-
-    companion object {
-        private val VIDEO_EXTENSIONS = listOf(
-            ".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv",
-            ".3gp", ".3g2", ".m4v", ".ts", ".m2ts", ".mts",
-            ".vob", ".ogv", ".rm", ".rmvb", ".asf", ".divx"
-        )
     }
 }

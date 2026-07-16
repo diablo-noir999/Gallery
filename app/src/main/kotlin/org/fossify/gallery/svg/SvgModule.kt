@@ -3,7 +3,7 @@ package org.fossify.gallery.svg
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.PictureDrawable
-import android.net.Uri
+import android.os.ParcelFileDescriptor
 
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Registry
@@ -18,10 +18,12 @@ import java.io.InputStream
 @GlideModule
 class SvgModule : AppGlideModule() {
     override fun registerComponents(context: Context, glide: Glide, registry: Registry) {
-        // Prepend our custom video thumbnail decoder so it runs BEFORE Glide's default.
-        // This ensures we always grab the frame at timestamp 0 (the cover frame).
+        // Prepend our custom video thumbnail decoder so it runs BEFORE Glide's default VideoDecoder.
+        // Glide's pipeline: String → Uri → ParcelFileDescriptor → Bitmap
+        // Glide's default VideoDecoder uses OPTION_CLOSEST_SYNC (nearest keyframe).
+        // Our decoder uses OPTION_CLOSEST (actual frame at timestamp 0).
         registry.prepend(
-            Uri::class.java,
+            ParcelFileDescriptor::class.java,
             Bitmap::class.java,
             VideoThumbnailDecoder()
         )
